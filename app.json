@@ -1,0 +1,32 @@
+{
+  "expo": {
+    "name": "Samvei",
+    "slug": "samvei-scandinavia",
+    "version": "0.2.0",
+    "orientation": "portrait",
+    "scheme": "samvei",
+    "userInterfaceStyle": "dark",
+    "icon": "./assets/icon.png",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "no.samvei.scandinavia",
+      "infoPlist": {
+        "NSFaceIDUsageDescription": "Samvei bruker Face ID for å låse opp kontoen din sikkert.",
+        "NSLocationWhenInUseUsageDescription": "Samvei bruker posisjonen din når du velger startpunkt eller destinasjon."
+      }
+    },
+    "android": {
+      "package": "no.samvei.scandinavia",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#071014"
+      },
+      "permissions": ["ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION"]
+    },
+    "plugins": [
+      "expo-local-authentication",
+      ["expo-location", {"locationWhenInUsePermission":"Samvei potrzebuje lokalizacji, aby ustawić punkt startu lub celu."}],
+      ["@stripe/stripe-react-native", {"merchantIdentifier":"merchant.no.samvei.scandinavia","enableGooglePay":true}]
+    ]
+  }
+}
