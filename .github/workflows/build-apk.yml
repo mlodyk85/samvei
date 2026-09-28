@@ -32,6 +32,11 @@ jobs:
       - name: Install dependencies
         run: npm install --no-audit --no-fund
 
+      - name: Install updater modules
+        env:
+          CI: '1'
+        run: npx expo install expo-file-system expo-intent-launcher
+
       - name: Align Expo dependencies
         env:
           CI: '1'
