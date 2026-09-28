@@ -2,7 +2,7 @@
   "expo": {
     "name": "Samvei",
     "slug": "samvei-scandinavia",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "orientation": "portrait",
     "scheme": "samvei",
     "userInterfaceStyle": "dark",
@@ -14,7 +14,7 @@
         "NSFaceIDUsageDescription": "Samvei bruker Face ID for å låse opp kontoen din sikkert.",
         "NSLocationWhenInUseUsageDescription": "Samvei bruker posisjonen din når du velger startpunkt eller destinasjon."
       },
-      "buildNumber": "102"
+      "buildNumber": "103"
     },
     "android": {
       "package": "no.samvei.scandinavia",
@@ -24,9 +24,10 @@
       },
       "permissions": [
         "ACCESS_FINE_LOCATION",
-        "ACCESS_COARSE_LOCATION"
+        "ACCESS_COARSE_LOCATION",
+        "REQUEST_INSTALL_PACKAGES"
       ],
-      "versionCode": 102
+      "versionCode": 103
     },
     "plugins": [
       "expo-local-authentication",
