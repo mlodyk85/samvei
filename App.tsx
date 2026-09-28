@@ -25,8 +25,8 @@ import { detourScoreKm } from './src/lib/geo'
 type Mode = 'home' | 'search' | 'offer' | 'matches' | 'map' | 'payments' | 'setPassword'
 type Point = { lat: number; lng: number; name: string }
 type MapTarget = 'from' | 'to'
-const APP_VERSION = '1.0.4'
-const APP_BUILD = '104'
+const APP_VERSION = '1.0.5'
+const APP_BUILD = '105'
 const ANDROID_APK_URL = 'https://github.com/mlodyk85/samvei/releases/latest/download/Samvei-Scandinavia.apk'
 type Match = {
   id: string
@@ -428,7 +428,26 @@ export default function App() {
           <TouchableOpacity style={styles.secondaryButton} onPress={signUp}><Text style={styles.secondaryText}>Utwórz konto</Text></TouchableOpacity>
           <TouchableOpacity onPress={resetPassword}><Text style={styles.link}>Nie pamiętam hasła</Text></TouchableOpacity>
           <TouchableOpacity onPress={resendConfirmation}><Text style={styles.linkSecondary}>Wyślij potwierdzenie ponownie (tylko dla nowego konta)</Text></TouchableOpacity>
+
+          <View style={styles.preloginUpdateBox}>
+            <View style={{flex:1}}>
+              <Text style={styles.updateTitle}>↻ Aktualizacja aplikacji</Text>
+              <Text style={styles.cardText}>Możesz sprawdzić i zainstalować nową wersję bez logowania.</Text>
+            </View>
+            <Text style={styles.versionChip}>v{APP_VERSION}</Text>
+          </View>
+          <TouchableOpacity
+            style={[styles.secondaryButton, (updateChecking || updateInstalling) && styles.disabled]}
+            onPress={() => checkForUpdates(true)}
+            disabled={updateChecking || updateInstalling}
+          >
+            <Text style={styles.secondaryText}>
+              {updateInstalling ? 'Pobieranie aktualizacji…' : updateChecking ? 'Sprawdzanie…' : 'Sprawdź aktualizację'}
+            </Text>
+          </TouchableOpacity>
+
           <Text style={styles.authHint}>Po zalogowaniu aplikację możesz odblokowywać odciskiem palca, Face ID lub kodem urządzenia.</Text>
+          <Text style={styles.versionFooter}>Samvei v{APP_VERSION} · build {APP_BUILD}</Text>
         </ScrollView>
       </SafeAreaView>
     )
@@ -581,6 +600,6 @@ const styles = StyleSheet.create({
   locationBox:{backgroundColor:'#182229',borderWidth:1,borderColor:'#2a3740',borderRadius:12,padding:13,minHeight:52,justifyContent:'center'},locationValue:{color:'white',fontSize:15},locationPlaceholder:{color:'#6f7785',fontSize:15},locationActions:{flexDirection:'row',gap:8,marginTop:8},actionBtn:{flex:1,borderWidth:1,borderColor:'#2e8f70',borderRadius:11,paddingVertical:10,alignItems:'center'},actionText:{color:'#76f6be',fontWeight:'800',fontSize:12},
   matchCard:{backgroundColor:'#121b21',borderRadius:18,padding:17,marginBottom:12,borderWidth:1,borderColor:'#26333c'},detour:{color:'#76f6be',fontWeight:'700',marginTop:9,marginBottom:12},smallPrimary:{backgroundColor:'#63e6ad',borderRadius:12,paddingVertical:12,alignItems:'center'},empty:{backgroundColor:'#121b21',borderRadius:18,padding:18},
   mapScreen:{flex:1,backgroundColor:'#071014'},mapHeader:{height:64,paddingHorizontal:18,flexDirection:'row',alignItems:'center',justifyContent:'space-between'},map:{flex:1},mapBottom:{padding:16,backgroundColor:'#0f171c',gap:10},mapHint:{color:'#aeb7c3',textAlign:'center'},
-  updateBox:{backgroundColor:'#101820',borderWidth:1,borderColor:'#26333c',borderRadius:16,padding:16,marginTop:12,flexDirection:'row',alignItems:'center',gap:12},updateTitle:{color:'#76f6be',fontWeight:'900',fontSize:16,marginBottom:5},versionChip:{color:'#071014',backgroundColor:'#63e6ad',fontWeight:'900',borderRadius:999,paddingHorizontal:10,paddingVertical:6,overflow:'hidden'},versionFooter:{color:'#65727b',fontSize:12,textAlign:'center',marginTop:18},
+  updateBox:{backgroundColor:'#101820',borderWidth:1,borderColor:'#26333c',borderRadius:16,padding:16,marginTop:12,flexDirection:'row',alignItems:'center',gap:12},preloginUpdateBox:{backgroundColor:'#0f171c',borderWidth:1,borderColor:'#26333c',borderRadius:16,padding:14,marginTop:22,flexDirection:'row',alignItems:'center',gap:12},updateTitle:{color:'#76f6be',fontWeight:'900',fontSize:16,marginBottom:5},versionChip:{color:'#071014',backgroundColor:'#63e6ad',fontWeight:'900',borderRadius:999,paddingHorizontal:10,paddingVertical:6,overflow:'hidden'},versionFooter:{color:'#65727b',fontSize:12,textAlign:'center',marginTop:18},
   sectionTitle:{color:'white',fontSize:21,fontWeight:'900',marginBottom:16},paymentRow:{flexDirection:'row',alignItems:'center',gap:14,paddingVertical:14,borderBottomWidth:1,borderBottomColor:'#26333c'},payIcon:{width:44,height:44,borderRadius:13,backgroundColor:'#182229',alignItems:'center',justifyContent:'center'},payIconText:{fontSize:20,color:'white',fontWeight:'900'},infoBox:{backgroundColor:'#12362d',borderRadius:16,padding:15,marginTop:18},infoTitle:{color:'#76f6be',fontWeight:'900',marginBottom:6},
 })
