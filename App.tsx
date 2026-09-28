@@ -23,8 +23,8 @@ import { detourScoreKm } from './src/lib/geo'
 type Mode = 'home' | 'search' | 'offer' | 'matches' | 'map' | 'payments'
 type Point = { lat: number; lng: number; name: string }
 type MapTarget = 'from' | 'to'
-const APP_VERSION = '1.0.1'
-const APP_BUILD = '101'
+const APP_VERSION = '1.0.2'
+const APP_BUILD = '102'
 type Match = {
   id: string
   from: string
@@ -146,12 +146,22 @@ export default function App() {
     }
   }
 
+  function authMessage(message?: string) {
+    const m = (message || '').toLowerCase()
+    if (m.includes('invalid login credentials')) return 'Nieprawidłowy e-mail lub hasło. Jeśli konto już istnieje, użyj opcji „Nie pamiętam hasła”.'
+    if (m.includes('email not confirmed')) return 'Adres e-mail nie został jeszcze potwierdzony. Sprawdź skrzynkę lub wyślij link potwierdzający ponownie.'
+    if (m.includes('already registered') || m.includes('user already registered')) return 'Konto z tym adresem e-mail już istnieje. Zaloguj się albo użyj opcji odzyskiwania hasła.'
+    if (m.includes('password')) return 'Hasło nie spełnia wymagań lub jest nieprawidłowe.'
+    if (m.includes('rate limit')) return 'Za dużo prób. Odczekaj chwilę i spróbuj ponownie.'
+    return message || 'Wystąpił błąd logowania.'
+  }
+
   async function signIn() {
     if (!email || password.length < 6) return Alert.alert('Sprawdź dane', 'Podaj e-mail i hasło min. 6 znaków.')
     setBusy(true)
     const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password })
     setBusy(false)
-    if (error) Alert.alert('Nie udało się zalogować', error.message)
+    if (error) Alert.alert('Nie udało się zalogować', authMessage(error.message))
   }
 
   async function signUp() {
@@ -159,15 +169,42 @@ export default function App() {
     setBusy(true)
     const { data, error } = await supabase.auth.signUp({ email: email.trim(), password })
     setBusy(false)
-    if (error) return Alert.alert('Nie udało się utworzyć konta', error.message)
-    if (!data.session) Alert.alert('Sprawdź e-mail', 'Konto utworzone. Potwierdź adres e-mail, a następnie zaloguj się.')
+    if (error) return Alert.alert('Nie udało się utworzyć konta', authMessage(error.message))
+
+    const identities = data.user?.identities
+    if (data.user && Array.isArray(identities) && identities.length === 0) {
+      return Alert.alert(
+        'Konto już istnieje',
+        'Ten adres e-mail jest już zarejestrowany. Zaloguj się albo użyj opcji „Nie pamiętam hasła”.',
+      )
+    }
+
+    if (data.session) {
+      setAuthenticated(true)
+      setLocked(false)
+      return Alert.alert('Konto gotowe', 'Rejestracja zakończona. Jesteś zalogowany.')
+    }
+
+    Alert.alert(
+      'Sprawdź e-mail',
+      'Wysłaliśmy link potwierdzający. Po kliknięciu wróć do aplikacji i zaloguj się.',
+    )
+  }
+
+  async function resendConfirmation() {
+    if (!email) return Alert.alert('Podaj e-mail', 'Wpisz adres e-mail konta.')
+    setBusy(true)
+    const { error } = await supabase.auth.resend({ type: 'signup', email: email.trim() })
+    setBusy(false)
+    if (error) return Alert.alert('Nie udało się wysłać', authMessage(error.message))
+    Alert.alert('Wysłano', 'Jeśli konto oczekuje na potwierdzenie, nowy link został wysłany na podany adres.')
   }
 
   async function resetPassword() {
     if (!email) return Alert.alert('Podaj e-mail', 'Wpisz adres e-mail, dla którego chcesz odzyskać hasło.')
     const { error } = await supabase.auth.resetPasswordForEmail(email.trim())
-    if (error) return Alert.alert('Błąd', error.message)
-    Alert.alert('Wysłano', 'Sprawdź skrzynkę e-mail.')
+    if (error) return Alert.alert('Błąd', authMessage(error.message))
+    Alert.alert('Wysłano', 'Sprawdź skrzynkę e-mail. Jeśli konto istnieje, otrzymasz link do zmiany hasła.')
   }
 
   async function signOut() {
@@ -335,6 +372,7 @@ export default function App() {
           <TouchableOpacity style={[styles.primary, busy && styles.disabled]} onPress={signIn} disabled={busy}><Text style={styles.primaryText}>{busy ? 'Proszę czekać…' : 'Zaloguj się'}</Text></TouchableOpacity>
           <TouchableOpacity style={styles.secondaryButton} onPress={signUp}><Text style={styles.secondaryText}>Utwórz konto</Text></TouchableOpacity>
           <TouchableOpacity onPress={resetPassword}><Text style={styles.link}>Nie pamiętam hasła</Text></TouchableOpacity>
+          <TouchableOpacity onPress={resendConfirmation}><Text style={styles.linkSecondary}>Wyślij e-mail potwierdzający ponownie</Text></TouchableOpacity>
           <Text style={styles.authHint}>Po zalogowaniu aplikację możesz odblokowywać odciskiem palca, Face ID lub kodem urządzenia.</Text>
         </ScrollView>
       </SafeAreaView>
@@ -472,7 +510,7 @@ const styles = StyleSheet.create({
   primaryCard:{backgroundColor:'#12362d',borderColor:'#2e8f70',borderWidth:1,borderRadius:20,padding:18,flexDirection:'row',gap:14,marginBottom:14},card:{backgroundColor:'#121b21',borderColor:'#26333c',borderWidth:1,borderRadius:20,padding:18,flexDirection:'row',gap:14,marginBottom:14},cardIcon:{fontSize:29,color:'#76f6be',width:40,textAlign:'center'},cardTitle:{color:'white',fontSize:18,fontWeight:'800',marginBottom:5},cardText:{color:'#9eabb5',fontSize:14,lineHeight:20},
   badgeRow:{flexDirection:'row',flexWrap:'wrap',gap:8,marginTop:8,marginBottom:24},badge:{color:'#d8e0e6',backgroundColor:'#101820',borderRadius:999,paddingHorizontal:12,paddingVertical:8},securityBox:{backgroundColor:'#0e171c',borderRadius:16,padding:16},securityTitle:{color:'#76f6be',fontWeight:'800',marginBottom:7},
   form:{backgroundColor:'#0f171c',borderRadius:20,padding:18},label:{color:'#c6d0d8',fontWeight:'700',marginBottom:7},input:{color:'white',backgroundColor:'#182229',borderWidth:1,borderColor:'#2a3740',borderRadius:12,paddingHorizontal:14,paddingVertical:13,fontSize:16},
-  primary:{backgroundColor:'#63e6ad',borderRadius:14,paddingVertical:15,alignItems:'center',marginTop:8},primaryWide:{backgroundColor:'#63e6ad',borderRadius:14,paddingVertical:15,alignItems:'center',width:'100%'},primaryText:{color:'#04110c',fontWeight:'900',fontSize:16},disabled:{opacity:.45},secondaryButton:{borderWidth:1,borderColor:'#3c4a53',borderRadius:14,paddingVertical:14,alignItems:'center',marginTop:10},secondaryText:{color:'#dce5ea',fontWeight:'800'},link:{color:'#76f6be',textAlign:'center',marginTop:18,fontWeight:'700'},
+  primary:{backgroundColor:'#63e6ad',borderRadius:14,paddingVertical:15,alignItems:'center',marginTop:8},primaryWide:{backgroundColor:'#63e6ad',borderRadius:14,paddingVertical:15,alignItems:'center',width:'100%'},primaryText:{color:'#04110c',fontWeight:'900',fontSize:16},disabled:{opacity:.45},secondaryButton:{borderWidth:1,borderColor:'#3c4a53',borderRadius:14,paddingVertical:14,alignItems:'center',marginTop:10},secondaryText:{color:'#dce5ea',fontWeight:'800'},link:{color:'#76f6be',textAlign:'center',marginTop:18,fontWeight:'700'},linkSecondary:{color:'#8fa5b0',textAlign:'center',marginTop:12,fontWeight:'700',fontSize:13},
   authScreen:{flexGrow:1,justifyContent:'center',padding:28,alignItems:'stretch'},authHint:{color:'#72808a',lineHeight:19,fontSize:12,marginTop:18,textAlign:'center'},
   locationBox:{backgroundColor:'#182229',borderWidth:1,borderColor:'#2a3740',borderRadius:12,padding:13,minHeight:52,justifyContent:'center'},locationValue:{color:'white',fontSize:15},locationPlaceholder:{color:'#6f7785',fontSize:15},locationActions:{flexDirection:'row',gap:8,marginTop:8},actionBtn:{flex:1,borderWidth:1,borderColor:'#2e8f70',borderRadius:11,paddingVertical:10,alignItems:'center'},actionText:{color:'#76f6be',fontWeight:'800',fontSize:12},
   matchCard:{backgroundColor:'#121b21',borderRadius:18,padding:17,marginBottom:12,borderWidth:1,borderColor:'#26333c'},detour:{color:'#76f6be',fontWeight:'700',marginTop:9,marginBottom:12},smallPrimary:{backgroundColor:'#63e6ad',borderRadius:12,paddingVertical:12,alignItems:'center'},empty:{backgroundColor:'#121b21',borderRadius:18,padding:18},
