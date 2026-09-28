@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Alert,
   BackHandler,
+  Linking,
   Platform,
   SafeAreaView,
   ScrollView,
@@ -22,6 +23,8 @@ import { detourScoreKm } from './src/lib/geo'
 type Mode = 'home' | 'search' | 'offer' | 'matches' | 'map' | 'payments'
 type Point = { lat: number; lng: number; name: string }
 type MapTarget = 'from' | 'to'
+const APP_VERSION = '1.0.1'
+const APP_BUILD = '101'
 type Match = {
   id: string
   from: string
@@ -49,6 +52,7 @@ export default function App() {
   const [mapPoint, setMapPoint] = useState<Point | null>(null)
   const [matches, setMatches] = useState<Match[]>([])
   const [busy, setBusy] = useState(false)
+  const [updateChecking, setUpdateChecking] = useState(false)
 
   useEffect(() => {
     biometricAvailable().then(setBiometrics).catch(() => setBiometrics(false))
@@ -86,6 +90,61 @@ export default function App() {
   }, [mode, mapTarget])
 
   const stripeKey = process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || 'pk_test_placeholder'
+
+  function compareVersions(a: string, b: string) {
+    const aa = a.split('.').map((v) => Number(v) || 0)
+    const bb = b.split('.').map((v) => Number(v) || 0)
+    const len = Math.max(aa.length, bb.length)
+    for (let i = 0; i < len; i++) {
+      const av = aa[i] || 0
+      const bv = bb[i] || 0
+      if (av > bv) return 1
+      if (av < bv) return -1
+    }
+    return 0
+  }
+
+  async function checkForUpdates(showCurrent = true) {
+    setUpdateChecking(true)
+    try {
+      const { data, error } = await supabase
+        .from('app_release_config')
+        .select('latest_app_version,min_supported_version,store_url,force_native_update,release_notes,release_date')
+        .eq('platform', Platform.OS === 'ios' ? 'ios' : 'android')
+        .eq('channel', 'production')
+        .maybeSingle()
+
+      if (error) throw error
+      if (!data?.latest_app_version) {
+        if (showCurrent) Alert.alert('Aktualizacje', `Masz Samvei ${APP_VERSION} (${APP_BUILD}). Brak informacji o nowszej wersji.`)
+        return
+      }
+
+      const newer = compareVersions(data.latest_app_version, APP_VERSION) > 0
+      if (!newer) {
+        if (showCurrent) Alert.alert('Samvei jest aktualny', `Wersja ${APP_VERSION} (${APP_BUILD}) jest najnowsza.`)
+        return
+      }
+
+      const notes = data.release_notes ? `\n\n${data.release_notes}` : ''
+      const buttons: any[] = [{ text: data.force_native_update ? 'Zamknij' : 'Później', style: 'cancel' }]
+      if (data.store_url) {
+        buttons.push({
+          text: 'Aktualizuj',
+          onPress: () => Linking.openURL(data.store_url).catch(() => Alert.alert('Aktualizacja', 'Nie udało się otworzyć linku aktualizacji.')),
+        })
+      }
+      Alert.alert(
+        data.force_native_update ? 'Wymagana aktualizacja' : 'Dostępna aktualizacja',
+        `Dostępna wersja ${data.latest_app_version}. Masz ${APP_VERSION}.${notes}`,
+        buttons,
+      )
+    } catch (e: any) {
+      if (showCurrent) Alert.alert('Aktualizacje', e?.message || 'Nie udało się sprawdzić aktualizacji.')
+    } finally {
+      setUpdateChecking(false)
+    }
+  }
 
   async function signIn() {
     if (!email || password.length < 6) return Alert.alert('Sprawdź dane', 'Podaj e-mail i hasło min. 6 znaków.')
@@ -310,7 +369,7 @@ export default function App() {
               <TouchableOpacity onPress={signOut}><Text style={styles.logout}>Wyjdź</Text></TouchableOpacity>
             </View>
 
-            {mode === 'home' && <Home setMode={setMode} biometrics={biometrics} />}
+            {mode === 'home' && <Home setMode={setMode} biometrics={biometrics} onCheckUpdates={() => checkForUpdates(true)} updateChecking={updateChecking} />}
 
             {(mode === 'search' || mode === 'offer') && (
               <View style={styles.form}>
@@ -347,7 +406,7 @@ export default function App() {
   )
 }
 
-function Home({ setMode, biometrics }: {setMode:(m:Mode)=>void; biometrics:boolean}) {
+function Home({ setMode, biometrics, onCheckUpdates, updateChecking }: {setMode:(m:Mode)=>void; biometrics:boolean; onCheckUpdates:()=>void; updateChecking:boolean}) {
   return <>
     <Text style={styles.hero}>Podróżujesz po Skandynawii?</Text>
     <Text style={styles.subtitle}>Znajdź wolne miejsce albo zabierz pasażera po swojej trasie.</Text>
@@ -356,6 +415,14 @@ function Home({ setMode, biometrics }: {setMode:(m:Mode)=>void; biometrics:boole
     <TouchableOpacity style={styles.card} onPress={() => setMode('payments')}><Text style={styles.cardIcon}>💳</Text><View style={{flex:1}}><Text style={styles.cardTitle}>Płatności</Text><Text style={styles.cardText}>Karta, Google Pay i Apple Pay — moduł płatności przygotowany dla rezerwacji.</Text></View></TouchableOpacity>
     <View style={styles.badgeRow}><Text style={styles.badge}>🇳🇴 Norwegia</Text><Text style={styles.badge}>🇸🇪 Szwecja</Text><Text style={styles.badge}>🇩🇰 Dania</Text></View>
     <View style={styles.securityBox}><Text style={styles.securityTitle}>🔐 Bezpieczny dostęp</Text><Text style={styles.cardText}>{biometrics ? 'Biometria jest dostępna na tym urządzeniu.' : 'Biometria pojawi się automatycznie na obsługiwanym urządzeniu.'}</Text></View>
+    <TouchableOpacity style={styles.updateBox} onPress={onCheckUpdates} disabled={updateChecking}>
+      <View style={{flex:1}}>
+        <Text style={styles.updateTitle}>↻ Aktualizacje</Text>
+        <Text style={styles.cardText}>{updateChecking ? 'Sprawdzanie…' : 'Sprawdź, czy jest dostępna nowsza wersja Samvei.'}</Text>
+      </View>
+      <Text style={styles.versionChip}>v{APP_VERSION}</Text>
+    </TouchableOpacity>
+    <Text style={styles.versionFooter}>Samvei v{APP_VERSION} · build {APP_BUILD}</Text>
   </>
 }
 
@@ -399,7 +466,7 @@ function MapPicker({point,setPoint,onCancel,onSave,title}:{point:Point|null;setP
 
 const styles = StyleSheet.create({
   safe:{flex:1,backgroundColor:'#071014'},page:{padding:20,paddingBottom:48},center:{flex:1,alignItems:'center',justifyContent:'center',padding:28},
-  header:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',marginBottom:28},backButton:{width:42},back:{color:'#76f6be',fontSize:30,fontWeight:'600'},title:{color:'white',fontSize:20,fontWeight:'800'},logout:{color:'#8f9ca5',fontWeight:'700',fontSize:13},
+  header:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',marginBottom:24,paddingTop:16},backButton:{width:48,height:48,alignItems:'flex-start',justifyContent:'center',paddingTop:5},back:{color:'#76f6be',fontSize:30,fontWeight:'600'},title:{color:'white',fontSize:20,fontWeight:'800'},logout:{color:'#8f9ca5',fontWeight:'700',fontSize:13},
   logo:{color:'white',fontWeight:'900',fontSize:38,marginBottom:6},brandMark:{width:74,height:74,borderRadius:22,backgroundColor:'#12362d',borderWidth:1,borderColor:'#2e8f70',alignItems:'center',justifyContent:'center',marginBottom:16},brandS:{color:'#76f6be',fontWeight:'900',fontSize:46},
   hero:{color:'white',fontSize:34,lineHeight:40,fontWeight:'900',marginBottom:10},subtitle:{color:'#aeb7c3',fontSize:16,lineHeight:23,marginBottom:22},
   primaryCard:{backgroundColor:'#12362d',borderColor:'#2e8f70',borderWidth:1,borderRadius:20,padding:18,flexDirection:'row',gap:14,marginBottom:14},card:{backgroundColor:'#121b21',borderColor:'#26333c',borderWidth:1,borderRadius:20,padding:18,flexDirection:'row',gap:14,marginBottom:14},cardIcon:{fontSize:29,color:'#76f6be',width:40,textAlign:'center'},cardTitle:{color:'white',fontSize:18,fontWeight:'800',marginBottom:5},cardText:{color:'#9eabb5',fontSize:14,lineHeight:20},
@@ -410,5 +477,6 @@ const styles = StyleSheet.create({
   locationBox:{backgroundColor:'#182229',borderWidth:1,borderColor:'#2a3740',borderRadius:12,padding:13,minHeight:52,justifyContent:'center'},locationValue:{color:'white',fontSize:15},locationPlaceholder:{color:'#6f7785',fontSize:15},locationActions:{flexDirection:'row',gap:8,marginTop:8},actionBtn:{flex:1,borderWidth:1,borderColor:'#2e8f70',borderRadius:11,paddingVertical:10,alignItems:'center'},actionText:{color:'#76f6be',fontWeight:'800',fontSize:12},
   matchCard:{backgroundColor:'#121b21',borderRadius:18,padding:17,marginBottom:12,borderWidth:1,borderColor:'#26333c'},detour:{color:'#76f6be',fontWeight:'700',marginTop:9,marginBottom:12},smallPrimary:{backgroundColor:'#63e6ad',borderRadius:12,paddingVertical:12,alignItems:'center'},empty:{backgroundColor:'#121b21',borderRadius:18,padding:18},
   mapScreen:{flex:1,backgroundColor:'#071014'},mapHeader:{height:64,paddingHorizontal:18,flexDirection:'row',alignItems:'center',justifyContent:'space-between'},map:{flex:1},mapBottom:{padding:16,backgroundColor:'#0f171c',gap:10},mapHint:{color:'#aeb7c3',textAlign:'center'},
+  updateBox:{backgroundColor:'#101820',borderWidth:1,borderColor:'#26333c',borderRadius:16,padding:16,marginTop:12,flexDirection:'row',alignItems:'center',gap:12},updateTitle:{color:'#76f6be',fontWeight:'900',fontSize:16,marginBottom:5},versionChip:{color:'#071014',backgroundColor:'#63e6ad',fontWeight:'900',borderRadius:999,paddingHorizontal:10,paddingVertical:6,overflow:'hidden'},versionFooter:{color:'#65727b',fontSize:12,textAlign:'center',marginTop:18},
   sectionTitle:{color:'white',fontSize:21,fontWeight:'900',marginBottom:16},paymentRow:{flexDirection:'row',alignItems:'center',gap:14,paddingVertical:14,borderBottomWidth:1,borderBottomColor:'#26333c'},payIcon:{width:44,height:44,borderRadius:13,backgroundColor:'#182229',alignItems:'center',justifyContent:'center'},payIconText:{fontSize:20,color:'white',fontWeight:'900'},infoBox:{backgroundColor:'#12362d',borderRadius:16,padding:15,marginTop:18},infoTitle:{color:'#76f6be',fontWeight:'900',marginBottom:6},
 })
