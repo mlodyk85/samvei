@@ -22,12 +22,15 @@ import { supabase } from './src/lib/supabase'
 import { biometricAvailable, unlockWithBiometrics } from './src/lib/biometric'
 import { detourScoreKm } from './src/lib/geo'
 
-type Mode = 'home' | 'search' | 'offer' | 'matches' | 'map' | 'payments' | 'setPassword'
+type Mode = 'home' | 'search' | 'offer' | 'matches' | 'map' | 'payments' | 'setPassword' | 'myRides'
 type Point = { lat: number; lng: number; name: string }
 type MapTarget = 'from' | 'to'
-const APP_VERSION = '1.0.5'
-const APP_BUILD = '105'
+const APP_VERSION = '1.0.6'
+const APP_BUILD = '106'
 const ANDROID_APK_URL = 'https://github.com/mlodyk85/samvei/releases/latest/download/Samvei-Scandinavia.apk'
+type CountryCode = 'NO' | 'SE' | 'DK'
+type LanguageCode = 'pl' | 'no' | 'sv' | 'da' | 'en'
+type MyRideItem = { id:string; kind:'driver'|'passenger'; from:string; to:string; departure:string; status:string; seats:number }
 type Match = {
   id: string
   from: string
@@ -59,9 +62,19 @@ export default function App() {
   const [busy, setBusy] = useState(false)
   const [updateChecking, setUpdateChecking] = useState(false)
   const [updateInstalling, setUpdateInstalling] = useState(false)
+  const [country, setCountry] = useState<CountryCode>('NO')
+  const [language, setLanguage] = useState<LanguageCode>('pl')
+  const [myRides, setMyRides] = useState<MyRideItem[]>([])
+  const [myRidesLoading, setMyRidesLoading] = useState(false)
   const updateCheckedOnce = useRef(false)
 
   useEffect(() => {
+    try {
+      const savedCountry = localStorage.getItem('samvei_country') as CountryCode | null
+      const savedLanguage = localStorage.getItem('samvei_language') as LanguageCode | null
+      if (savedCountry && ['NO','SE','DK'].includes(savedCountry)) setCountry(savedCountry)
+      if (savedLanguage && ['pl','no','sv','da','en'].includes(savedLanguage)) setLanguage(savedLanguage)
+    } catch {}
     biometricAvailable().then(setBiometrics).catch(() => setBiometrics(false))
     supabase.auth.getSession().then(({ data }) => {
       const hasSession = Boolean(data.session)
@@ -99,6 +112,7 @@ export default function App() {
     if (mode === 'map') return mapTarget === 'from' ? 'Wybierz punkt startu' : 'Wybierz cel'
     if (mode === 'payments') return 'Płatności'
     if (mode === 'setPassword') return 'Ustaw nowe hasło'
+    if (mode === 'myRides') return 'Moje przejazdy'
     return 'Samvei'
   }, [mode, mapTarget])
 
@@ -260,6 +274,56 @@ export default function App() {
     setMode('home')
     setLocked(false)
     Alert.alert('Hasło zmienione', 'Możesz korzystać z Samvei.')
+  }
+
+  function selectCountry(value: CountryCode) {
+    setCountry(value)
+    try { localStorage.setItem('samvei_country', value) } catch {}
+  }
+
+  function selectLanguage(value: LanguageCode) {
+    setLanguage(value)
+    try { localStorage.setItem('samvei_language', value) } catch {}
+  }
+
+  async function openMyRides() {
+    const { data: userData } = await supabase.auth.getUser()
+    if (!userData.user) return Alert.alert('Zaloguj się')
+    setMyRidesLoading(true)
+    try {
+      const [driverRes, passengerRes] = await Promise.all([
+        supabase.from('routes')
+          .select('id,origin_name,destination_name,departure_at,seats_available,status')
+          .eq('driver_id', userData.user.id)
+          .order('departure_at', { ascending: false })
+          .limit(50),
+        supabase.from('ride_requests')
+          .select('id,origin_name,destination_name,desired_departure_at,seats_needed,status')
+          .eq('passenger_id', userData.user.id)
+          .order('desired_departure_at', { ascending: false })
+          .limit(50),
+      ])
+      if (driverRes.error) throw driverRes.error
+      if (passengerRes.error) throw passengerRes.error
+      const rows: MyRideItem[] = [
+        ...(driverRes.data || []).map((r:any)=>({
+          id:r.id, kind:'driver' as const, from:r.origin_name, to:r.destination_name,
+          departure:new Date(r.departure_at).toLocaleString(), status:r.status || 'active',
+          seats:r.seats_available || 0,
+        })),
+        ...(passengerRes.data || []).map((r:any)=>({
+          id:r.id, kind:'passenger' as const, from:r.origin_name, to:r.destination_name,
+          departure:new Date(r.desired_departure_at).toLocaleString(), status:r.status || 'pending',
+          seats:r.seats_needed || 1,
+        })),
+      ].sort((a,b)=>Date.parse(b.departure)-Date.parse(a.departure))
+      setMyRides(rows)
+      setMode('myRides')
+    } catch (e:any) {
+      Alert.alert('Moje przejazdy', e?.message || 'Nie udało się pobrać przejazdów.')
+    } finally {
+      setMyRidesLoading(false)
+    }
   }
 
   async function signOut() {
@@ -492,7 +556,19 @@ export default function App() {
               <TouchableOpacity onPress={signOut}><Text style={styles.logout}>Wyjdź</Text></TouchableOpacity>
             </View>
 
-            {mode === 'home' && <Home setMode={setMode} biometrics={biometrics} onCheckUpdates={() => checkForUpdates(true)} updateChecking={updateChecking} updateInstalling={updateInstalling} />}
+            {mode === 'home' && <Home
+              setMode={setMode}
+              biometrics={biometrics}
+              onCheckUpdates={() => checkForUpdates(true)}
+              updateChecking={updateChecking}
+              updateInstalling={updateInstalling}
+              onOpenMyRides={openMyRides}
+              myRidesLoading={myRidesLoading}
+              country={country}
+              language={language}
+              onCountry={selectCountry}
+              onLanguage={selectLanguage}
+            />}
 
             {(mode === 'search' || mode === 'offer') && (
               <View style={styles.form}>
@@ -521,6 +597,25 @@ export default function App() {
               </>
             )}
 
+            {mode === 'myRides' && (
+              <>
+                <Text style={styles.subtitle}>Twoje przejazdy jako kierowca oraz zgłoszenia jako pasażer.</Text>
+                {myRides.length === 0 ? (
+                  <View style={styles.empty}><Text style={styles.cardText}>Nie masz jeszcze żadnych przejazdów.</Text></View>
+                ) : myRides.map((r)=>(
+                  <View key={r.kind + r.id} style={styles.matchCard}>
+                    <View style={styles.rideTopRow}>
+                      <Text style={styles.rideKind}>{r.kind === 'driver' ? '🚗 Kierowca' : '🙋 Pasażer'}</Text>
+                      <Text style={styles.statusChip}>{r.status}</Text>
+                    </View>
+                    <Text style={styles.cardTitle}>{r.from} → {r.to}</Text>
+                    <Text style={styles.cardText}>{r.departure}</Text>
+                    <Text style={styles.cardText}>{r.kind === 'driver' ? 'Wolne miejsca' : 'Liczba osób'}: {r.seats}</Text>
+                  </View>
+                ))}
+              </>
+            )}
+
             {mode === 'payments' && <Payments />}
           </ScrollView>
         )}
@@ -529,14 +624,37 @@ export default function App() {
   )
 }
 
-function Home({ setMode, biometrics, onCheckUpdates, updateChecking, updateInstalling }: {setMode:(m:Mode)=>void; biometrics:boolean; onCheckUpdates:()=>void; updateChecking:boolean; updateInstalling:boolean}) {
+function Home({
+  setMode, biometrics, onCheckUpdates, updateChecking, updateInstalling,
+  onOpenMyRides, myRidesLoading, country, language, onCountry, onLanguage
+}: {
+  setMode:(m:Mode)=>void; biometrics:boolean; onCheckUpdates:()=>void; updateChecking:boolean; updateInstalling:boolean;
+  onOpenMyRides:()=>void; myRidesLoading:boolean; country:CountryCode; language:LanguageCode;
+  onCountry:(c:CountryCode)=>void; onLanguage:(l:LanguageCode)=>void
+}) {
   return <>
     <Text style={styles.hero}>Podróżujesz po Skandynawii?</Text>
     <Text style={styles.subtitle}>Znajdź wolne miejsce albo zabierz pasażera po swojej trasie.</Text>
     <TouchableOpacity style={styles.primaryCard} onPress={() => setMode('search')}><Text style={styles.cardIcon}>⌕</Text><View style={{flex:1}}><Text style={styles.cardTitle}>Szukam przejazdu</Text><Text style={styles.cardText}>Zgłoś A → B. Użyj GPS lub wybierz dokładne punkty na mapie.</Text></View></TouchableOpacity>
     <TouchableOpacity style={styles.card} onPress={() => setMode('offer')}><Text style={styles.cardIcon}>🚗</Text><View style={{flex:1}}><Text style={styles.cardTitle}>Mam wolne miejsca</Text><Text style={styles.cardText}>Opublikuj trasę i znajdź pasażerów, których możesz zabrać po drodze.</Text></View></TouchableOpacity>
+    <TouchableOpacity style={styles.card} onPress={onOpenMyRides} disabled={myRidesLoading}><Text style={styles.cardIcon}>🧾</Text><View style={{flex:1}}><Text style={styles.cardTitle}>Moje przejazdy</Text><Text style={styles.cardText}>{myRidesLoading ? 'Pobieranie…' : 'Zobacz opublikowane trasy i swoje zgłoszenia przejazdu.'}</Text></View></TouchableOpacity>
     <TouchableOpacity style={styles.card} onPress={() => setMode('payments')}><Text style={styles.cardIcon}>💳</Text><View style={{flex:1}}><Text style={styles.cardTitle}>Płatności</Text><Text style={styles.cardText}>Karta, Google Pay i Apple Pay — moduł płatności przygotowany dla rezerwacji.</Text></View></TouchableOpacity>
-    <View style={styles.badgeRow}><Text style={styles.badge}>🇳🇴 Norwegia</Text><Text style={styles.badge}>🇸🇪 Szwecja</Text><Text style={styles.badge}>🇩🇰 Dania</Text></View>
+
+    <Text style={styles.selectorLabel}>Kraj</Text>
+    <View style={styles.badgeRow}>
+      <TouchableOpacity onPress={()=>onCountry('NO')}><Text style={[styles.badge,country==='NO'&&styles.badgeActive]}>🇳🇴 Norwegia</Text></TouchableOpacity>
+      <TouchableOpacity onPress={()=>onCountry('SE')}><Text style={[styles.badge,country==='SE'&&styles.badgeActive]}>🇸🇪 Szwecja</Text></TouchableOpacity>
+      <TouchableOpacity onPress={()=>onCountry('DK')}><Text style={[styles.badge,country==='DK'&&styles.badgeActive]}>🇩🇰 Dania</Text></TouchableOpacity>
+    </View>
+
+    <Text style={styles.selectorLabel}>Język</Text>
+    <View style={styles.badgeRow}>
+      <TouchableOpacity onPress={()=>onLanguage('pl')}><Text style={[styles.badge,language==='pl'&&styles.badgeActive]}>PL Polski</Text></TouchableOpacity>
+      <TouchableOpacity onPress={()=>onLanguage('no')}><Text style={[styles.badge,language==='no'&&styles.badgeActive]}>NO Norsk</Text></TouchableOpacity>
+      <TouchableOpacity onPress={()=>onLanguage('sv')}><Text style={[styles.badge,language==='sv'&&styles.badgeActive]}>SV Svenska</Text></TouchableOpacity>
+      <TouchableOpacity onPress={()=>onLanguage('da')}><Text style={[styles.badge,language==='da'&&styles.badgeActive]}>DA Dansk</Text></TouchableOpacity>
+      <TouchableOpacity onPress={()=>onLanguage('en')}><Text style={[styles.badge,language==='en'&&styles.badgeActive]}>EN English</Text></TouchableOpacity>
+    </View>
     <View style={styles.securityBox}><Text style={styles.securityTitle}>🔐 Bezpieczny dostęp</Text><Text style={styles.cardText}>{biometrics ? 'Biometria jest dostępna na tym urządzeniu.' : 'Biometria pojawi się automatycznie na obsługiwanym urządzeniu.'}</Text></View>
     <TouchableOpacity style={styles.updateBox} onPress={onCheckUpdates} disabled={updateChecking}>
       <View style={{flex:1}}>
@@ -593,12 +711,12 @@ const styles = StyleSheet.create({
   logo:{color:'white',fontWeight:'900',fontSize:38,marginBottom:6},brandMark:{width:74,height:74,borderRadius:22,backgroundColor:'#12362d',borderWidth:1,borderColor:'#2e8f70',alignItems:'center',justifyContent:'center',marginBottom:16},brandS:{color:'#76f6be',fontWeight:'900',fontSize:46},
   hero:{color:'white',fontSize:34,lineHeight:40,fontWeight:'900',marginBottom:10},subtitle:{color:'#aeb7c3',fontSize:16,lineHeight:23,marginBottom:22},
   primaryCard:{backgroundColor:'#12362d',borderColor:'#2e8f70',borderWidth:1,borderRadius:20,padding:18,flexDirection:'row',gap:14,marginBottom:14},card:{backgroundColor:'#121b21',borderColor:'#26333c',borderWidth:1,borderRadius:20,padding:18,flexDirection:'row',gap:14,marginBottom:14},cardIcon:{fontSize:29,color:'#76f6be',width:40,textAlign:'center'},cardTitle:{color:'white',fontSize:18,fontWeight:'800',marginBottom:5},cardText:{color:'#9eabb5',fontSize:14,lineHeight:20},
-  badgeRow:{flexDirection:'row',flexWrap:'wrap',gap:8,marginTop:8,marginBottom:24},badge:{color:'#d8e0e6',backgroundColor:'#101820',borderRadius:999,paddingHorizontal:12,paddingVertical:8},securityBox:{backgroundColor:'#0e171c',borderRadius:16,padding:16},securityTitle:{color:'#76f6be',fontWeight:'800',marginBottom:7},
+  badgeRow:{flexDirection:'row',flexWrap:'wrap',gap:8,marginTop:8,marginBottom:18},badge:{color:'#d8e0e6',backgroundColor:'#101820',borderRadius:999,paddingHorizontal:12,paddingVertical:8,borderWidth:1,borderColor:'#1d2a31'},badgeActive:{backgroundColor:'#12362d',borderColor:'#63e6ad',color:'#76f6be'},selectorLabel:{color:'#c6d0d8',fontWeight:'800',marginTop:8},securityBox:{backgroundColor:'#0e171c',borderRadius:16,padding:16},securityTitle:{color:'#76f6be',fontWeight:'800',marginBottom:7},
   form:{backgroundColor:'#0f171c',borderRadius:20,padding:18},label:{color:'#c6d0d8',fontWeight:'700',marginBottom:7},input:{color:'white',backgroundColor:'#182229',borderWidth:1,borderColor:'#2a3740',borderRadius:12,paddingHorizontal:14,paddingVertical:13,fontSize:16},
   primary:{backgroundColor:'#63e6ad',borderRadius:14,paddingVertical:15,alignItems:'center',marginTop:8},primaryWide:{backgroundColor:'#63e6ad',borderRadius:14,paddingVertical:15,alignItems:'center',width:'100%'},primaryText:{color:'#04110c',fontWeight:'900',fontSize:16},disabled:{opacity:.45},secondaryButton:{borderWidth:1,borderColor:'#3c4a53',borderRadius:14,paddingVertical:14,alignItems:'center',marginTop:10},secondaryText:{color:'#dce5ea',fontWeight:'800'},link:{color:'#76f6be',textAlign:'center',marginTop:18,fontWeight:'700'},linkSecondary:{color:'#8fa5b0',textAlign:'center',marginTop:12,fontWeight:'700',fontSize:13},
   authScreen:{flexGrow:1,justifyContent:'center',padding:28,alignItems:'stretch'},authHint:{color:'#72808a',lineHeight:19,fontSize:12,marginTop:18,textAlign:'center'},
   locationBox:{backgroundColor:'#182229',borderWidth:1,borderColor:'#2a3740',borderRadius:12,padding:13,minHeight:52,justifyContent:'center'},locationValue:{color:'white',fontSize:15},locationPlaceholder:{color:'#6f7785',fontSize:15},locationActions:{flexDirection:'row',gap:8,marginTop:8},actionBtn:{flex:1,borderWidth:1,borderColor:'#2e8f70',borderRadius:11,paddingVertical:10,alignItems:'center'},actionText:{color:'#76f6be',fontWeight:'800',fontSize:12},
-  matchCard:{backgroundColor:'#121b21',borderRadius:18,padding:17,marginBottom:12,borderWidth:1,borderColor:'#26333c'},detour:{color:'#76f6be',fontWeight:'700',marginTop:9,marginBottom:12},smallPrimary:{backgroundColor:'#63e6ad',borderRadius:12,paddingVertical:12,alignItems:'center'},empty:{backgroundColor:'#121b21',borderRadius:18,padding:18},
+  matchCard:{backgroundColor:'#121b21',borderRadius:18,padding:17,marginBottom:12,borderWidth:1,borderColor:'#26333c'},rideTopRow:{flexDirection:'row',justifyContent:'space-between',alignItems:'center',marginBottom:10},rideKind:{color:'#76f6be',fontWeight:'900'},statusChip:{color:'#dce5ea',backgroundColor:'#1b252b',paddingHorizontal:9,paddingVertical:5,borderRadius:999,fontSize:12,overflow:'hidden'},detour:{color:'#76f6be',fontWeight:'700',marginTop:9,marginBottom:12},smallPrimary:{backgroundColor:'#63e6ad',borderRadius:12,paddingVertical:12,alignItems:'center'},empty:{backgroundColor:'#121b21',borderRadius:18,padding:18},
   mapScreen:{flex:1,backgroundColor:'#071014'},mapHeader:{height:64,paddingHorizontal:18,flexDirection:'row',alignItems:'center',justifyContent:'space-between'},map:{flex:1},mapBottom:{padding:16,backgroundColor:'#0f171c',gap:10},mapHint:{color:'#aeb7c3',textAlign:'center'},
   updateBox:{backgroundColor:'#101820',borderWidth:1,borderColor:'#26333c',borderRadius:16,padding:16,marginTop:12,flexDirection:'row',alignItems:'center',gap:12},preloginUpdateBox:{backgroundColor:'#0f171c',borderWidth:1,borderColor:'#26333c',borderRadius:16,padding:14,marginTop:22,flexDirection:'row',alignItems:'center',gap:12},updateTitle:{color:'#76f6be',fontWeight:'900',fontSize:16,marginBottom:5},versionChip:{color:'#071014',backgroundColor:'#63e6ad',fontWeight:'900',borderRadius:999,paddingHorizontal:10,paddingVertical:6,overflow:'hidden'},versionFooter:{color:'#65727b',fontSize:12,textAlign:'center',marginTop:18},
   sectionTitle:{color:'white',fontSize:21,fontWeight:'900',marginBottom:16},paymentRow:{flexDirection:'row',alignItems:'center',gap:14,paddingVertical:14,borderBottomWidth:1,borderBottomColor:'#26333c'},payIcon:{width:44,height:44,borderRadius:13,backgroundColor:'#182229',alignItems:'center',justifyContent:'center'},payIconText:{fontSize:20,color:'white',fontWeight:'900'},infoBox:{backgroundColor:'#12362d',borderRadius:16,padding:15,marginTop:18},infoTitle:{color:'#76f6be',fontWeight:'900',marginBottom:6},
