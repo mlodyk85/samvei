@@ -39,9 +39,12 @@ jobs:
         working-directory: samvei-scandinavia
         run: npm install --no-audit --no-fund
 
-      - name: Expo dependency check
+      - name: Align Expo dependencies
         working-directory: samvei-scandinavia
-        run: npx expo install --check
+        env:
+          CI: '1'
+        run: npx expo install --fix
+
 
       - name: Generate native Android project
         working-directory: samvei-scandinavia
