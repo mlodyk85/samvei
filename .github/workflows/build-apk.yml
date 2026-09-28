@@ -22,8 +22,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22.16.0'
-          cache: 'npm'
-          cache-dependency-path: samvei-scandinavia/package-lock.json
 
       - name: Setup Java
         uses: actions/setup-java@v4
