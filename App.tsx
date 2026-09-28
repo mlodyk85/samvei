@@ -440,7 +440,7 @@ export default function App() {
               <TouchableOpacity onPress={signOut}><Text style={styles.logout}>Wyjdź</Text></TouchableOpacity>
             </View>
 
-            {mode === 'home' && <Home setMode={setMode} biometrics={biometrics} onCheckUpdates={() => checkForUpdates(true)} updateChecking={updateChecking} />}
+            {mode === 'home' && <Home setMode={setMode} biometrics={biometrics} onCheckUpdates={() => checkForUpdates(true)} updateChecking={updateChecking} updateInstalling={updateInstalling} />}
 
             {(mode === 'search' || mode === 'offer') && (
               <View style={styles.form}>
@@ -477,7 +477,7 @@ export default function App() {
   )
 }
 
-function Home({ setMode, biometrics, onCheckUpdates, updateChecking }: {setMode:(m:Mode)=>void; biometrics:boolean; onCheckUpdates:()=>void; updateChecking:boolean}) {
+function Home({ setMode, biometrics, onCheckUpdates, updateChecking, updateInstalling }: {setMode:(m:Mode)=>void; biometrics:boolean; onCheckUpdates:()=>void; updateChecking:boolean; updateInstalling:boolean}) {
   return <>
     <Text style={styles.hero}>Podróżujesz po Skandynawii?</Text>
     <Text style={styles.subtitle}>Znajdź wolne miejsce albo zabierz pasażera po swojej trasie.</Text>
