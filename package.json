@@ -1,6 +1,6 @@
 {
   "name": "samvei-scandinavia",
-  "version": "0.2.0",
+  "version": "1.0.3",
   "private": true,
   "main": "node_modules/expo/AppEntry.js",
   "scripts": {
@@ -21,7 +21,9 @@
     "react": "19.2.3",
     "react-native": "0.86.3",
     "react-native-url-polyfill": "2.0.0",
-    "react-native-webview": "13.16.0"
+    "react-native-webview": "13.16.0",
+    "expo-file-system": "~57.0.8",
+    "expo-intent-launcher": "~57.0.3"
   },
   "devDependencies": {
     "@types/react": "~19.2.4",
