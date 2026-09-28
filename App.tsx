@@ -15,6 +15,8 @@ import {
 import { StatusBar } from 'expo-status-bar'
 import * as Location from 'expo-location'
 import { WebView } from 'react-native-webview'
+import * as FileSystem from 'expo-file-system/legacy'
+import * as IntentLauncher from 'expo-intent-launcher'
 import { StripeProvider } from '@stripe/stripe-react-native'
 import { supabase } from './src/lib/supabase'
 import { biometricAvailable, unlockWithBiometrics } from './src/lib/biometric'
@@ -23,8 +25,9 @@ import { detourScoreKm } from './src/lib/geo'
 type Mode = 'home' | 'search' | 'offer' | 'matches' | 'map' | 'payments'
 type Point = { lat: number; lng: number; name: string }
 type MapTarget = 'from' | 'to'
-const APP_VERSION = '1.0.2'
-const APP_BUILD = '102'
+const APP_VERSION = '1.0.3'
+const APP_BUILD = '103'
+const ANDROID_APK_URL = 'https://github.com/mlodyk85/samvei/releases/latest/download/Samvei-Scandinavia.apk'
 type Match = {
   id: string
   from: string
@@ -53,6 +56,8 @@ export default function App() {
   const [matches, setMatches] = useState<Match[]>([])
   const [busy, setBusy] = useState(false)
   const [updateChecking, setUpdateChecking] = useState(false)
+  const [updateInstalling, setUpdateInstalling] = useState(false)
+  const updateCheckedOnce = useRef(false)
 
   useEffect(() => {
     biometricAvailable().then(setBiometrics).catch(() => setBiometrics(false))
@@ -104,6 +109,27 @@ export default function App() {
     return 0
   }
 
+  async function installAndroidUpdate() {
+    if (Platform.OS !== 'android') return
+    setUpdateInstalling(true)
+    try {
+      const target = FileSystem.cacheDirectory + 'Samvei-update.apk'
+      try { await FileSystem.deleteAsync(target, { idempotent: true }) } catch {}
+      const result = await FileSystem.downloadAsync(ANDROID_APK_URL, target)
+      if (result.status < 200 || result.status >= 300) throw new Error('Nie udało się pobrać aktualizacji.')
+      const contentUri = await FileSystem.getContentUriAsync(target)
+      await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
+        data: contentUri,
+        flags: 1,
+        type: 'application/vnd.android.package-archive',
+      })
+    } catch (e: any) {
+      Alert.alert('Aktualizacja', e?.message || 'Nie udało się uruchomić instalatora aktualizacji.')
+    } finally {
+      setUpdateInstalling(false)
+    }
+  }
+
   async function checkForUpdates(showCurrent = true) {
     setUpdateChecking(true)
     try {
@@ -128,12 +154,13 @@ export default function App() {
 
       const notes = data.release_notes ? `\n\n${data.release_notes}` : ''
       const buttons: any[] = [{ text: data.force_native_update ? 'Zamknij' : 'Później', style: 'cancel' }]
-      if (data.store_url) {
-        buttons.push({
-          text: 'Aktualizuj',
-          onPress: () => Linking.openURL(data.store_url).catch(() => Alert.alert('Aktualizacja', 'Nie udało się otworzyć linku aktualizacji.')),
-        })
-      }
+      buttons.push({
+        text: Platform.OS === 'android' ? 'Pobierz i zainstaluj' : 'Aktualizuj',
+        onPress: () => {
+          if (Platform.OS === 'android') installAndroidUpdate()
+          else if (data.store_url) Linking.openURL(data.store_url).catch(() => Alert.alert('Aktualizacja', 'Nie udało się otworzyć linku aktualizacji.'))
+        },
+      })
       Alert.alert(
         data.force_native_update ? 'Wymagana aktualizacja' : 'Dostępna aktualizacja',
         `Dostępna wersja ${data.latest_app_version}. Masz ${APP_VERSION}.${notes}`,
@@ -155,6 +182,12 @@ export default function App() {
     if (m.includes('rate limit')) return 'Za dużo prób. Odczekaj chwilę i spróbuj ponownie.'
     return message || 'Wystąpił błąd logowania.'
   }
+
+  useEffect(() => {
+    if (authLoading || updateCheckedOnce.current) return
+    updateCheckedOnce.current = true
+    checkForUpdates(false)
+  }, [authLoading])
 
   async function signIn() {
     if (!email || password.length < 6) return Alert.alert('Sprawdź dane', 'Podaj e-mail i hasło min. 6 znaków.')
@@ -456,7 +489,7 @@ function Home({ setMode, biometrics, onCheckUpdates, updateChecking }: {setMode:
     <TouchableOpacity style={styles.updateBox} onPress={onCheckUpdates} disabled={updateChecking}>
       <View style={{flex:1}}>
         <Text style={styles.updateTitle}>↻ Aktualizacje</Text>
-        <Text style={styles.cardText}>{updateChecking ? 'Sprawdzanie…' : 'Sprawdź, czy jest dostępna nowsza wersja Samvei.'}</Text>
+        <Text style={styles.cardText}>{updateInstalling ? 'Pobieranie aktualizacji…' : updateChecking ? 'Sprawdzanie…' : 'Aktualizacje są sprawdzane automatycznie przy uruchomieniu.'}</Text>
       </View>
       <Text style={styles.versionChip}>v{APP_VERSION}</Text>
     </TouchableOpacity>
