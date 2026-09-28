@@ -59,13 +59,13 @@ jobs:
 
       - name: Prepare APK
         run: |
-          cp android/app/build/outputs/apk/release/app-release.apk Samvei-Scandinavia-v0.2.apk
-          ls -lh Samvei-Scandinavia-v0.2.apk
+          cp android/app/build/outputs/apk/release/app-release.apk Samvei-Scandinavia-v1.0.1.apk
+          ls -lh Samvei-Scandinavia-v1.0.1.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Samvei-Scandinavia-v0.2-APK
-          path: Samvei-Scandinavia-v0.2.apk
+          name: Samvei-Scandinavia-v1.0.1-APK
+          path: Samvei-Scandinavia-v1.0.1.apk
           if-no-files-found: error
           retention-days: 30
