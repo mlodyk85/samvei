@@ -22,11 +22,11 @@ import { supabase } from './src/lib/supabase'
 import { biometricAvailable, unlockWithBiometrics } from './src/lib/biometric'
 import { detourScoreKm } from './src/lib/geo'
 
-type Mode = 'home' | 'search' | 'offer' | 'matches' | 'map' | 'payments'
+type Mode = 'home' | 'search' | 'offer' | 'matches' | 'map' | 'payments' | 'setPassword'
 type Point = { lat: number; lng: number; name: string }
 type MapTarget = 'from' | 'to'
-const APP_VERSION = '1.0.3'
-const APP_BUILD = '103'
+const APP_VERSION = '1.0.4'
+const APP_BUILD = '104'
 const ANDROID_APK_URL = 'https://github.com/mlodyk85/samvei/releases/latest/download/Samvei-Scandinavia.apk'
 type Match = {
   id: string
@@ -44,6 +44,8 @@ export default function App() {
   const [authLoading, setAuthLoading] = useState(true)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmNewPassword, setConfirmNewPassword] = useState('')
   const [locked, setLocked] = useState(false)
   const [biometrics, setBiometrics] = useState(false)
   const [from, setFrom] = useState<Point | null>(null)
@@ -67,9 +69,14 @@ export default function App() {
       setLocked(hasSession)
       setAuthLoading(false)
     })
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
       const logged = Boolean(session)
       setAuthenticated(logged)
+      if (event === 'PASSWORD_RECOVERY') {
+        setLocked(false)
+        setMode('setPassword')
+        return
+      }
       if (logged) setLocked(true)
     })
     return () => listener.subscription.unsubscribe()
@@ -91,6 +98,7 @@ export default function App() {
     if (mode === 'matches') return 'Pasażerowie po trasie'
     if (mode === 'map') return mapTarget === 'from' ? 'Wybierz punkt startu' : 'Wybierz cel'
     if (mode === 'payments') return 'Płatności'
+    if (mode === 'setPassword') return 'Ustaw nowe hasło'
     return 'Samvei'
   }, [mode, mapTarget])
 
@@ -235,9 +243,23 @@ export default function App() {
 
   async function resetPassword() {
     if (!email) return Alert.alert('Podaj e-mail', 'Wpisz adres e-mail, dla którego chcesz odzyskać hasło.')
-    const { error } = await supabase.auth.resetPasswordForEmail(email.trim())
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: 'samvei://reset-password' })
     if (error) return Alert.alert('Błąd', authMessage(error.message))
     Alert.alert('Wysłano', 'Sprawdź skrzynkę e-mail. Jeśli konto istnieje, otrzymasz link do zmiany hasła.')
+  }
+
+  async function saveNewPassword() {
+    if (newPassword.length < 8) return Alert.alert('Hasło', 'Nowe hasło musi mieć co najmniej 8 znaków.')
+    if (newPassword !== confirmNewPassword) return Alert.alert('Hasło', 'Hasła nie są identyczne.')
+    setBusy(true)
+    const { error } = await supabase.auth.updateUser({ password: newPassword })
+    setBusy(false)
+    if (error) return Alert.alert('Nie udało się zmienić hasła', authMessage(error.message))
+    setNewPassword('')
+    setConfirmNewPassword('')
+    setMode('home')
+    setLocked(false)
+    Alert.alert('Hasło zmienione', 'Możesz korzystać z Samvei.')
   }
 
   async function signOut() {
@@ -405,7 +427,7 @@ export default function App() {
           <TouchableOpacity style={[styles.primary, busy && styles.disabled]} onPress={signIn} disabled={busy}><Text style={styles.primaryText}>{busy ? 'Proszę czekać…' : 'Zaloguj się'}</Text></TouchableOpacity>
           <TouchableOpacity style={styles.secondaryButton} onPress={signUp}><Text style={styles.secondaryText}>Utwórz konto</Text></TouchableOpacity>
           <TouchableOpacity onPress={resetPassword}><Text style={styles.link}>Nie pamiętam hasła</Text></TouchableOpacity>
-          <TouchableOpacity onPress={resendConfirmation}><Text style={styles.linkSecondary}>Wyślij e-mail potwierdzający ponownie</Text></TouchableOpacity>
+          <TouchableOpacity onPress={resendConfirmation}><Text style={styles.linkSecondary}>Wyślij potwierdzenie ponownie (tylko dla nowego konta)</Text></TouchableOpacity>
           <Text style={styles.authHint}>Po zalogowaniu aplikację możesz odblokowywać odciskiem palca, Face ID lub kodem urządzenia.</Text>
         </ScrollView>
       </SafeAreaView>
@@ -430,7 +452,18 @@ export default function App() {
     <StripeProvider publishableKey={stripeKey} merchantIdentifier="merchant.no.samvei.scandinavia" urlScheme="samvei">
       <SafeAreaView style={styles.safe}>
         <StatusBar style="light" />
-        {mode === 'map' ? (
+        {mode === 'setPassword' ? (
+          <ScrollView contentContainerStyle={styles.authScreen} keyboardShouldPersistTaps="handled">
+            <View style={styles.brandMark}><Text style={styles.brandS}>S</Text></View>
+            <Text style={styles.logo}>Nowe hasło</Text>
+            <Text style={styles.subtitle}>Link odzyskiwania został potwierdzony. Ustaw nowe hasło do konta Samvei.</Text>
+            <TextInput style={styles.input} value={newPassword} onChangeText={setNewPassword} secureTextEntry placeholder="Nowe hasło" placeholderTextColor="#6f7785" />
+            <TextInput style={[styles.input,{marginTop:12}]} value={confirmNewPassword} onChangeText={setConfirmNewPassword} secureTextEntry placeholder="Powtórz nowe hasło" placeholderTextColor="#6f7785" />
+            <TouchableOpacity style={[styles.primary,busy&&styles.disabled]} onPress={saveNewPassword} disabled={busy}>
+              <Text style={styles.primaryText}>{busy ? 'Zapisywanie…' : 'Zapisz nowe hasło'}</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        ) : mode === 'map' ? (
           <MapPicker point={mapPoint} setPoint={setMapPoint} onCancel={() => setMode(previousMode.current)} onSave={saveMapPoint} title={title} />
         ) : (
           <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
