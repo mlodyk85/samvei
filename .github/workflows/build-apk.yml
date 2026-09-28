@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-android:
@@ -59,13 +59,25 @@ jobs:
 
       - name: Prepare APK
         run: |
-          cp android/app/build/outputs/apk/release/app-release.apk Samvei-Scandinavia-v1.0.2.apk
-          ls -lh Samvei-Scandinavia-v1.0.2.apk
+          cp android/app/build/outputs/apk/release/app-release.apk Samvei-Scandinavia-v1.0.3.apk
+          ls -lh Samvei-Scandinavia-v1.0.3.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Samvei-Scandinavia-v1.0.2-APK
-          path: Samvei-Scandinavia-v1.0.2.apk
+          name: Samvei-Scandinavia-v1.0.3-APK
+          path: Samvei-Scandinavia-v1.0.3.apk
           if-no-files-found: error
           retention-days: 30
+
+      - name: Publish GitHub release
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp Samvei-Scandinavia-v1.0.3.apk Samvei-Scandinavia.apk
+          if gh release view v1.0.3 >/dev/null 2>&1; then
+            gh release upload v1.0.3 Samvei-Scandinavia.apk --clobber
+          else
+            gh release create v1.0.3 Samvei-Scandinavia.apk --title "Samvei 1.0.3" --notes "Automatyczne sprawdzanie aktualizacji i instalacja APK z poziomu aplikacji."
+          fi
