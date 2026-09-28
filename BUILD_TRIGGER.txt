@@ -1,1 +1,1 @@
-Trigger Android APK verification build — v0.2 login GPS map payments.
+Trigger Android APK verification build — v1.0.1 version label, lowered back button, updates.
