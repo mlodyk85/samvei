@@ -13,7 +13,7 @@ permissions:
 jobs:
   build-android:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 40
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -29,42 +29,43 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Extract app
-        run: |
-          rm -rf samvei-scandinavia
-          unzip -q samvei-scandinavia-mvp.zip
-          test -f samvei-scandinavia/package.json
-
       - name: Install dependencies
-        working-directory: samvei-scandinavia
         run: npm install --no-audit --no-fund
 
       - name: Align Expo dependencies
-        working-directory: samvei-scandinavia
         env:
           CI: '1'
         run: npx expo install --fix
 
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Generate app icon
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq librsvg2-bin
+          mkdir -p assets
+          rsvg-convert -w 1024 -h 1024 -o assets/icon.png assets/icon.svg
+          cp assets/icon.png assets/adaptive-icon.png
 
       - name: Generate native Android project
-        working-directory: samvei-scandinavia
         env:
           CI: '1'
         run: npx expo prebuild --platform android --clean --no-install
 
       - name: Build installable release APK
-        working-directory: samvei-scandinavia/android
+        working-directory: android
         run: ./gradlew assembleRelease --no-daemon
 
       - name: Prepare APK
         run: |
-          cp samvei-scandinavia/android/app/build/outputs/apk/release/app-release.apk Samvei-Scandinavia.apk
-          ls -lh Samvei-Scandinavia.apk
+          cp android/app/build/outputs/apk/release/app-release.apk Samvei-Scandinavia-v0.2.apk
+          ls -lh Samvei-Scandinavia-v0.2.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Samvei-Scandinavia-APK
-          path: Samvei-Scandinavia.apk
+          name: Samvei-Scandinavia-v0.2-APK
+          path: Samvei-Scandinavia-v0.2.apk
           if-no-files-found: error
           retention-days: 30
