@@ -632,22 +632,29 @@ function Home({
   onOpenMyRides:()=>void; myRidesLoading:boolean; country:CountryCode; language:LanguageCode;
   onCountry:(c:CountryCode)=>void; onLanguage:(l:LanguageCode)=>void
 }) {
+  const copy = {
+    pl:{hero:'Podróżujesz po Skandynawii?',sub:'Znajdź wolne miejsce albo zabierz pasażera po swojej trasie.',search:'Szukam przejazdu',offer:'Mam wolne miejsca',mine:'Moje przejazdy',payments:'Płatności',country:'Kraj',language:'Język'},
+    no:{hero:'Reiser du i Skandinavia?',sub:'Finn et ledig sete eller ta med en passasjer på veien.',search:'Jeg søker skyss',offer:'Jeg har ledige seter',mine:'Mine turer',payments:'Betalinger',country:'Land',language:'Språk'},
+    sv:{hero:'Reser du i Skandinavien?',sub:'Hitta en ledig plats eller ta med en passagerare längs vägen.',search:'Jag söker skjuts',offer:'Jag har lediga platser',mine:'Mina resor',payments:'Betalningar',country:'Land',language:'Språk'},
+    da:{hero:'Rejser du i Skandinavien?',sub:'Find en ledig plads eller tag en passager med på vejen.',search:'Jeg søger et lift',offer:'Jeg har ledige pladser',mine:'Mine ture',payments:'Betalinger',country:'Land',language:'Sprog'},
+    en:{hero:'Travelling around Scandinavia?',sub:'Find a free seat or pick up a passenger along your route.',search:'I need a ride',offer:'I have free seats',mine:'My rides',payments:'Payments',country:'Country',language:'Language'},
+  }[language]
   return <>
-    <Text style={styles.hero}>Podróżujesz po Skandynawii?</Text>
-    <Text style={styles.subtitle}>Znajdź wolne miejsce albo zabierz pasażera po swojej trasie.</Text>
-    <TouchableOpacity style={styles.primaryCard} onPress={() => setMode('search')}><Text style={styles.cardIcon}>⌕</Text><View style={{flex:1}}><Text style={styles.cardTitle}>Szukam przejazdu</Text><Text style={styles.cardText}>Zgłoś A → B. Użyj GPS lub wybierz dokładne punkty na mapie.</Text></View></TouchableOpacity>
-    <TouchableOpacity style={styles.card} onPress={() => setMode('offer')}><Text style={styles.cardIcon}>🚗</Text><View style={{flex:1}}><Text style={styles.cardTitle}>Mam wolne miejsca</Text><Text style={styles.cardText}>Opublikuj trasę i znajdź pasażerów, których możesz zabrać po drodze.</Text></View></TouchableOpacity>
-    <TouchableOpacity style={styles.card} onPress={onOpenMyRides} disabled={myRidesLoading}><Text style={styles.cardIcon}>🧾</Text><View style={{flex:1}}><Text style={styles.cardTitle}>Moje przejazdy</Text><Text style={styles.cardText}>{myRidesLoading ? 'Pobieranie…' : 'Zobacz opublikowane trasy i swoje zgłoszenia przejazdu.'}</Text></View></TouchableOpacity>
-    <TouchableOpacity style={styles.card} onPress={() => setMode('payments')}><Text style={styles.cardIcon}>💳</Text><View style={{flex:1}}><Text style={styles.cardTitle}>Płatności</Text><Text style={styles.cardText}>Karta, Google Pay i Apple Pay — moduł płatności przygotowany dla rezerwacji.</Text></View></TouchableOpacity>
+    <Text style={styles.hero}>{copy.hero}</Text>
+    <Text style={styles.subtitle}>{copy.sub}</Text>
+    <TouchableOpacity style={styles.primaryCard} onPress={() => setMode('search')}><Text style={styles.cardIcon}>⌕</Text><View style={{flex:1}}><Text style={styles.cardTitle}>{copy.search}</Text><Text style={styles.cardText}>Zgłoś A → B. Użyj GPS lub wybierz dokładne punkty na mapie.</Text></View></TouchableOpacity>
+    <TouchableOpacity style={styles.card} onPress={() => setMode('offer')}><Text style={styles.cardIcon}>🚗</Text><View style={{flex:1}}><Text style={styles.cardTitle}>{copy.offer}</Text><Text style={styles.cardText}>Opublikuj trasę i znajdź pasażerów, których możesz zabrać po drodze.</Text></View></TouchableOpacity>
+    <TouchableOpacity style={styles.card} onPress={onOpenMyRides} disabled={myRidesLoading}><Text style={styles.cardIcon}>🧾</Text><View style={{flex:1}}><Text style={styles.cardTitle}>{copy.mine}</Text><Text style={styles.cardText}>{myRidesLoading ? 'Pobieranie…' : 'Zobacz opublikowane trasy i swoje zgłoszenia przejazdu.'}</Text></View></TouchableOpacity>
+    <TouchableOpacity style={styles.card} onPress={() => setMode('payments')}><Text style={styles.cardIcon}>💳</Text><View style={{flex:1}}><Text style={styles.cardTitle}>{copy.payments}</Text><Text style={styles.cardText}>Karta, Google Pay i Apple Pay — moduł płatności przygotowany dla rezerwacji.</Text></View></TouchableOpacity>
 
-    <Text style={styles.selectorLabel}>Kraj</Text>
+    <Text style={styles.selectorLabel}>{copy.country}</Text>
     <View style={styles.badgeRow}>
       <TouchableOpacity onPress={()=>onCountry('NO')}><Text style={[styles.badge,country==='NO'&&styles.badgeActive]}>🇳🇴 Norwegia</Text></TouchableOpacity>
       <TouchableOpacity onPress={()=>onCountry('SE')}><Text style={[styles.badge,country==='SE'&&styles.badgeActive]}>🇸🇪 Szwecja</Text></TouchableOpacity>
       <TouchableOpacity onPress={()=>onCountry('DK')}><Text style={[styles.badge,country==='DK'&&styles.badgeActive]}>🇩🇰 Dania</Text></TouchableOpacity>
     </View>
 
-    <Text style={styles.selectorLabel}>Język</Text>
+    <Text style={styles.selectorLabel}>{copy.language}</Text>
     <View style={styles.badgeRow}>
       <TouchableOpacity onPress={()=>onLanguage('pl')}><Text style={[styles.badge,language==='pl'&&styles.badgeActive]}>PL Polski</Text></TouchableOpacity>
       <TouchableOpacity onPress={()=>onLanguage('no')}><Text style={[styles.badge,language==='no'&&styles.badgeActive]}>NO Norsk</Text></TouchableOpacity>
