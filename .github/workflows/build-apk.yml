@@ -64,14 +64,14 @@ jobs:
 
       - name: Prepare APK
         run: |
-          cp android/app/build/outputs/apk/release/app-release.apk Samvei-Scandinavia-v1.0.6.apk
-          ls -lh Samvei-Scandinavia-v1.0.6.apk
+          cp android/app/build/outputs/apk/release/app-release.apk Samvei-Scandinavia-v1.1.0.apk
+          ls -lh Samvei-Scandinavia-v1.1.0.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Samvei-Scandinavia-v1.0.6-APK
-          path: Samvei-Scandinavia-v1.0.6.apk
+          name: Samvei-Scandinavia-v1.1.0-APK
+          path: Samvei-Scandinavia-v1.1.0.apk
           if-no-files-found: error
           retention-days: 30
 
@@ -80,9 +80,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cp Samvei-Scandinavia-v1.0.6.apk Samvei-Scandinavia.apk
-          if gh release view v1.0.6 >/dev/null 2>&1; then
-            gh release upload v1.0.6 Samvei-Scandinavia.apk --clobber
+          cp Samvei-Scandinavia-v1.1.0.apk Samvei-Scandinavia.apk
+          if gh release view v1.1.0 >/dev/null 2>&1; then
+            gh release upload v1.1.0 Samvei-Scandinavia.apk --clobber
           else
-            gh release create v1.0.6 Samvei-Scandinavia.apk --title "Samvei 1.0.6" --notes "Dodano Moje przejazdy oraz aktywny wybór kraju i języka."
+            gh release create v1.1.0 Samvei-Scandinavia.apk --title "Samvei 1.1.0" --notes "Przebudowano główny przepływ przejazdów: oferty kierowców, akceptacja, aktualne przejazdy i czat."
           fi
